@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tusmo</title>
+
+<style>
+body{
+    margin:0;
+    background:#111;
+    color:white;
+    font-family:Arial, sans-serif;
+    text-align:center;
+    overflow:hidden;
+}
+
+h1{ margin-top:20px; }
+
+.grid{
+    display:flex;
+    justify-content:center;
+    gap:6px;
+    margin:6px;
+}
+
+.tile{
+    width:40px;
+    height:40px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-weight:bold;
+    font-size:18px;
+    border-radius:4px;
+    background:#222;
+    transition:transform 0.4s;
+}
+
+.flip{ transform:rotateX(360deg); }
+
+.correct{ background:#2ecc71; color:white; }
+.present{ background:#f1c40f; color:black; }
+.absent{ background:#444; color:#aaa; }
+
+.keyboard{ margin-top:15px; }
+
+.key-row{
+    display:flex;
+    justify-content:center;
+    margin:3px;
+}
+
+/* ===== CLAVIER ===== */
+
+.key{
+    padding:10px;
+    margin:2px;
+    background:#2a2a2a;
+    border-radius:4px;
+    font-size:14px;
+    cursor:pointer;
+    min-width:28px;
+    border:2px solid #2a2a2a;
+    color:white;
+    transition:0.2s;
+}
+
+.key.correct{
+    background:#2ecc71 !important;
+    border:2px solid #2ecc71 !important;
+    color:white !important;
+}
+
+.key.present{
+    background:#f1c40f !important;
+    border:2px solid #f1c40f !important;
+    color:black !important;
+}
+
+.key.absent{
+    background:#444 !important;
+    border:2px solid #444 !important;
+    color:#aaa !important;
+}
+
+.special{
+    background:#666;
+    border:2px solid #666;
+}
+
+#message{
+    margin:20px;
+    font-size:18px;
+    font-weight:bold;
+}
+
+/* Confettis */
+.confetti{
+    position:fixed;
+    width:8px;
+    height:8px;
+    top:-10px;
+    animation:fall 1s linear forwards;
+}
+
+@keyframes fall{
+    to{
+        transform:translateY(100vh) rotate(720deg);
+        opacity:0;
+    }
+}
+</style>
+</head>
+<body>
+
+<h1>TUSMO</h1>
+<h3 id="levelTitle"></h3>
+
+<div id="game"></div>
+<div class="keyboard" id="keyboard"></div>
+<div id="message"></div>
+
+<script>
+
+const words = ["LUXE","CARLIN","CONCORDE","GOURMANDS"];
+
+let currentWordIndex = 0;
+let attempts = 0;
+const maxAttempts = 6;
+
+let currentGuess = [];
+let firstLetter = "";
+let lockedLetters = [];
+let wordAttempts = [];
+
+const game = document.getElementById("game");
+const message = document.getElementById("message");
+const levelTitle = document.getElementById("levelTitle");
+
+function initKeyboard(){
+    const letters = ["AZERTYUIOP","QSDFGHJKLM","WXCVBN"];
+    const keyboard = document.getElementById("keyboard");
+    keyboard.innerHTML="";
+
+    letters.forEach(row=>{
+        const div = document.createElement("div");
+        div.className="key-row";
+        row.split("").forEach(letter=>{
+            const key = document.createElement("div");
+            key.className="key";
+            key.innerText=letter;
+            key.dataset.letter = letter;
+            key.onclick=()=>addLetter(letter);
+            div.appendChild(key);
+        });
+        keyboard.appendChild(div);
+    });
+
+    const lastRow = document.createElement("div");
+    lastRow.className="key-row";
+
+    const del = document.createElement("div");
+    del.className="key special";
+    del.innerText="⌫";
+    del.onclick=deleteLetter;
+
+    const enter = document.createElement("div");
+    enter.className="key special";
+    enter.innerText="OK";
+    enter.onclick=submitGuess;
+
+    lastRow.appendChild(del);
+    lastRow.appendChild(enter);
+    keyboard.appendChild(lastRow);
+}
+
+function startLevel(){
+    attempts=0;
+    lockedLetters=[];
+    game.innerHTML="";
+    message.innerText="";
+    levelTitle.innerText="Mot "+(currentWordIndex+1)+" / 4";
+
+    initKeyboard();
+    createEmptyGrid();
+
+    firstLetter = words[currentWordIndex][0];
+    currentGuess = Array(words[currentWordIndex].length).fill("");
+    currentGuess[0] = firstLetter;
+
+    updateCurrentRow();
+}
+
+function createEmptyGrid(){
+    const word = words[currentWordIndex];
+    for(let i=0;i<maxAttempts;i++){
+        const row = document.createElement("div");
+        row.className="grid";
+        row.dataset.row=i;
+
+        for(let j=0;j<word.length;j++){
+            const tile = document.createElement("div");
+            tile.className="tile";
+            row.appendChild(tile);
+        }
+        game.appendChild(row);
+    }
+}
+
+function addLetter(letter){
+    const wordLength = words[currentWordIndex].length;
+    for(let i=1;i<wordLength;i++){
+        if(currentGuess[i]===""){
+            currentGuess[i]=letter;
+            break;
+        }
+    }
+    updateCurrentRow();
+}
+
+function deleteLetter(){
+    for(let i=currentGuess.length-1;i>=1;i--){
+        if(currentGuess[i]!=="" ){
+            currentGuess[i]="";
+            break;
+        }
+    }
+    updateCurrentRow();
+}
+
+function updateCurrentRow(){
+    const row = document.querySelector(`[data-row='${attempts}']`);
+    const tiles = row.children;
+    for(let i=0;i<tiles.length;i++){
+        tiles[i].innerText = currentGuess[i] || "";
+    }
+}
+
+function checkGuess(guess, word){
+    let result = Array(word.length).fill("absent");
+    let tempWord = word.split("");
+
+    for(let i=0;i<word.length;i++){
+        if(guess[i]===word[i]){
+            result[i]="correct";
+            tempWord[i]=null;
+            lockedLetters[i]=guess[i];
+        }
+    }
+
+    for(let i=0;i<word.length;i++){
+        if(result[i]!=="correct" && tempWord.includes(guess[i])){
+            result[i]="present";
+            tempWord[tempWord.indexOf(guess[i])]=null;
+        }
+    }
+
+    return result;
+}
+
+/* ===== NOUVELLE FONCTION CLAVIER ===== */
+function updateKeyboardFromResult(guess, result){
+    for(let i=0;i<guess.length;i++){
+        const letter = guess[i];
+        const key = document.querySelector(`[data-letter='${letter}']`);
+        if(!key) continue;
+
+        const status = result[i];
+
+        // Priorité : correct > present > absent
+        if(status === "correct"){
+            key.classList.remove("present","absent");
+            key.classList.add("correct");
+        }
+        else if(status === "present"){
+            if(!key.classList.contains("correct")){
+                key.classList.remove("absent");
+                key.classList.add("present");
+            }
+        }
+        else if(status === "absent"){
+            if(!key.classList.contains("correct") && !key.classList.contains("present")){
+                key.classList.add("absent");
+            }
+        }
+    }
+}
+
+function submitGuess(){
+    const word = words[currentWordIndex];
+    if(currentGuess.includes("")) return;
+
+    const guessString = currentGuess.join("");
+    const result = checkGuess(guessString, word);
+
+    const row = document.querySelector(`[data-row='${attempts}']`);
+    const tiles = row.children;
+
+    for(let i=0;i<tiles.length;i++){
+        setTimeout(()=>{
+            tiles[i].classList.add("flip");
+            tiles[i].classList.add(result[i]);
+        }, i*200);
+    }
+
+    // Mise à jour clavier globale après l'essai
+    updateKeyboardFromResult(currentGuess, result);
+
+    if(guessString===word){
+        wordAttempts.push(attempts+1);
+
+        setTimeout(()=>{
+            currentWordIndex++;
+            if(currentWordIndex < words.length){
+                startLevel();
+            }else{
+                launchConfetti();
+                setTimeout(showFinalScreen,1000);
+            }
+        },1200);
+    }else{
+        attempts++;
+        if(attempts>=maxAttempts){
+            message.innerText="Perdu 😢 Le mot était : "+word;
+            document.getElementById("keyboard").style.display="none";
+        }else{
+            currentGuess = Array(word.length).fill("");
+            currentGuess[0] = firstLetter;
+
+            for(let i=1;i<lockedLetters.length;i++){
+                if(lockedLetters[i]){
+                    currentGuess[i]=lockedLetters[i];
+                }
+            }
+
+            setTimeout(updateCurrentRow,300);
+        }
+    }
+}
+
+function showFinalScreen(){
+    let recap = "";
+
+    for(let i=0;i<words.length;i++){
+        recap += `Mot #${i+1} (${words[i]}) : `;
+        recap += "🔴".repeat(wordAttempts[i]);
+        recap += "<br><br>";
+    }
+
+    message.innerHTML =
+        recap +
+        "<br>Bravo tu as trouvé les 4 indices !<br><br>" +
+        "Prépare ta meilleure tenue, ce 8 mars risque d'être savoureux.<br><br>" +
+        "Joyeuse Saint-Valentin, je t'aime ❤️";
+
+    document.getElementById("keyboard").style.display="none";
+}
+
+function launchConfetti(){
+    for(let i=0;i<80;i++){
+        const conf = document.createElement("div");
+        conf.className="confetti";
+        conf.style.left=Math.random()*100+"vw";
+        conf.style.backgroundColor=`hsl(${Math.random()*360},100%,50%)`;
+        conf.style.animationDuration=(Math.random()*1+0.5)+"s";
+        document.body.appendChild(conf);
+        setTimeout(()=>conf.remove(),1000);
+    }
+}
+
+initKeyboard();
+startLevel();
+
+</script>
+</body>
+</html>
